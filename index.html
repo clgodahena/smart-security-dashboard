@@ -445,8 +445,8 @@
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             loadAll();
-            // Auto-refresh every 30 seconds
-            setInterval(loadAll, 30000);
+            // Auto-refresh every 10 seconds
+            setInterval(loadAll, 10000);
         });
 
         // Load all data
@@ -465,10 +465,15 @@
                 `Last update: ${now.toLocaleTimeString()}`;
         }
 
+        // Helper: Add cache-busting to URL
+        function noCacheUrl(url) {
+            return `${url}?_=${Date.now()}`;
+        }
+
         // Load statistics
         async function loadStats() {
             try {
-                const response = await fetch(`${API_BASE}/stats`);
+                const response = await fetch(noCacheUrl(`${API_BASE}/stats`));
                 if (!response.ok) throw new Error('Failed to load stats');
                 
                 const data = await response.json();
@@ -508,7 +513,7 @@
             const container = document.getElementById('accessLogBody');
             
             try {
-                const response = await fetch(`${API_BASE}/access`);
+                const response = await fetch(noCacheUrl(`${API_BASE}/access`));
                 if (!response.ok) throw new Error('Failed to load access logs');
                 
                 const logs = await response.json();
@@ -548,7 +553,7 @@
             const container = document.getElementById('alertsBody');
             
             try {
-                const response = await fetch(`${API_BASE}/alerts`);
+                const response = await fetch(noCacheUrl(`${API_BASE}/alerts`));
                 if (!response.ok) throw new Error('Failed to load alerts');
                 
                 const alerts = await response.json();
@@ -589,7 +594,7 @@
         // Load sensor data
         async function loadSensorData() {
             try {
-                const response = await fetch(`${API_BASE}/sensors`);
+                const response = await fetch(noCacheUrl(`${API_BASE}/sensors`));
                 if (!response.ok) throw new Error('Failed to load sensor data');
                 
                 const readings = await response.json();
