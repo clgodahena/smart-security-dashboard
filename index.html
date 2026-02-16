@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart Security Dashboard</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔐</text></svg>">
+    <!-- SignalR Client Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.0/signalr.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -43,6 +45,7 @@
             gap: 30px;
             padding: 15px;
             background: rgba(0, 0, 0, 0.2);
+            flex-wrap: wrap;
         }
 
         .status-item {
@@ -62,10 +65,33 @@
         .status-dot.online { background: #4caf50; }
         .status-dot.offline { background: #f44336; }
         .status-dot.warning { background: #ff9800; }
+        .status-dot.connecting { background: #2196f3; animation: blink 1s infinite; }
 
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .realtime-badge {
+            background: #4caf50;
+            color: white;
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 0.75rem;
+            animation: pulse 2s infinite;
+        }
+
+        .polling-badge {
+            background: #ff9800;
+            color: white;
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 0.75rem;
         }
 
         .container {
@@ -95,6 +121,17 @@
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
         }
 
+        .stat-card.alert-active {
+            border-color: #f44336;
+            box-shadow: 0 0 20px rgba(244, 67, 54, 0.3);
+            animation: alertPulse 1s infinite;
+        }
+
+        @keyframes alertPulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(244, 67, 54, 0.3); }
+            50% { box-shadow: 0 0 30px rgba(244, 67, 54, 0.6); }
+        }
+
         .stat-icon {
             font-size: 2.5rem;
             margin-bottom: 10px;
@@ -104,6 +141,12 @@
             font-size: 2.5rem;
             font-weight: 700;
             margin-bottom: 5px;
+            transition: transform 0.3s;
+        }
+
+        .stat-value.updated {
+            transform: scale(1.1);
+            color: #4caf50;
         }
 
         .stat-label {
@@ -160,16 +203,33 @@
             background: rgba(255, 255, 255, 0.03);
             border-radius: 10px;
             border-left: 4px solid #333;
-            transition: background 0.3s;
+            transition: all 0.3s;
         }
 
         .log-entry:hover {
             background: rgba(255, 255, 255, 0.08);
         }
 
+        .log-entry.new {
+            animation: slideIn 0.5s ease-out;
+            background: rgba(76, 175, 80, 0.1);
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
         .log-entry.granted { border-left-color: #4caf50; }
         .log-entry.denied { border-left-color: #f44336; }
         .log-entry.alert { border-left-color: #ff9800; }
+        .log-entry.tailgate { border-left-color: #e91e63; }
 
         .log-icon {
             font-size: 1.5rem;
@@ -208,6 +268,12 @@
             border-radius: 10px;
             padding: 20px;
             text-align: center;
+            transition: all 0.3s;
+        }
+
+        .sensor-card.alert {
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid #f44336;
         }
 
         .sensor-icon {
@@ -226,28 +292,56 @@
             color: #888;
         }
 
+        .sensor-threshold {
+            font-size: 0.7rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
         .alert-badge {
             display: inline-block;
             padding: 3px 10px;
             border-radius: 20px;
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             font-weight: 600;
             text-transform: uppercase;
         }
 
-        .alert-badge.proximity { background: #9c27b0; }
-        .alert-badge.tailgate { background: #f44336; }
-        .alert-badge.temperature { background: #ff5722; }
-        .alert-badge.humidity { background: #2196f3; }
+        .alert-badge.proximity { background: #2196f3; color: white; }
+        .alert-badge.tailgate { background: #e91e63; color: white; }
+        .alert-badge.temperature { background: #ff5722; color: white; }
+        .alert-badge.humidity { background: #00bcd4; color: white; }
+
+        .notification-toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #f44336;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            z-index: 1000;
+            animation: slideInRight 0.5s ease-out;
+            display: none;
+        }
+
+        .notification-toast.show {
+            display: block;
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
 
         .refresh-btn {
             background: rgba(255, 255, 255, 0.1);
             border: none;
-            color: #fff;
+            color: white;
             padding: 8px 15px;
-            border-radius: 20px;
+            border-radius: 5px;
             cursor: pointer;
-            font-size: 0.8rem;
             transition: background 0.3s;
         }
 
@@ -255,55 +349,24 @@
             background: rgba(255, 255, 255, 0.2);
         }
 
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #666;
-        }
-
-        .error-message {
-            text-align: center;
-            padding: 20px;
-            background: rgba(244, 67, 54, 0.1);
-            border-radius: 10px;
-            color: #f44336;
-            margin: 20px;
-        }
-
-        .mode-badge {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 10px;
-            font-size: 0.7rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            background: #ff9800;
-            color: #000;
-            margin-left: 10px;
-        }
-
-        @media (max-width: 768px) {
-            .panels {
-                grid-template-columns: 1fr;
-            }
-            
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-            
-            .status-bar {
-                flex-wrap: wrap;
-            }
+        .connection-info {
+            font-size: 0.75rem;
+            color: #888;
         }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>🔐 Smart Security Dashboard</h1>
-        <p class="subtitle">CS7080NU — IoT Security Monitoring System</p>
+        <p class="subtitle">CS7080NU IoT Security System — Real-Time Monitoring</p>
+        <div id="dataMode"></div>
     </div>
 
     <div class="status-bar">
+        <div class="status-item">
+            <span class="status-dot connecting" id="wsStatus"></span>
+            <span id="wsStatusText">Connecting...</span>
+        </div>
         <div class="status-item">
             <span class="status-dot" id="azureStatus"></span>
             <span>Azure Functions</span>
@@ -312,19 +375,21 @@
             <span class="status-dot" id="dbStatus"></span>
             <span>Cosmos DB</span>
         </div>
-        <div class="status-item">
-            <span class="status-dot" id="iotStatus"></span>
-            <span>IoT Hub</span>
+        <div class="status-item" id="connectionMode">
+            <span class="polling-badge">Connecting...</span>
         </div>
         <div class="status-item">
             <span id="lastUpdate">Last update: --</span>
-            <span id="dataMode"></span>
         </div>
     </div>
 
+    <!-- Notification Toast -->
+    <div class="notification-toast" id="alertToast">
+        <strong>🚨 Alert:</strong> <span id="alertMessage"></span>
+    </div>
+
     <div class="container">
-        <!-- Statistics Cards -->
-        <div class="stats-grid" id="statsGrid">
+        <div class="stats-grid">
             <div class="stat-card success">
                 <div class="stat-icon">✅</div>
                 <div class="stat-value" id="accessGranted">--</div>
@@ -341,19 +406,18 @@
                 <div class="stat-label">Total Alerts</div>
             </div>
             <div class="stat-card info">
-                <div class="stat-icon">📡</div>
+                <div class="stat-icon">📊</div>
                 <div class="stat-value" id="activeDevices">1</div>
                 <div class="stat-label">Active Devices</div>
             </div>
         </div>
 
-        <!-- Main Panels -->
         <div class="panels">
-            <!-- Access Log Panel -->
+            <!-- Access Logs Panel -->
             <div class="panel">
                 <div class="panel-header">
-                    <span class="panel-title">🚪 Recent Access Log</span>
-                    <button class="refresh-btn" onclick="loadAccessLogs()">Refresh</button>
+                    <span class="panel-title">📋 Recent Access Logs</span>
+                    <button class="refresh-btn" onclick="loadAccessLogs()">↻ Refresh</button>
                 </div>
                 <div class="panel-body" id="accessLogBody">
                     <div class="loading">Loading access logs...</div>
@@ -364,7 +428,7 @@
             <div class="panel">
                 <div class="panel-header">
                     <span class="panel-title">🚨 Security Alerts</span>
-                    <button class="refresh-btn" onclick="loadAlerts()">Refresh</button>
+                    <button class="refresh-btn" onclick="loadAlerts()">↻ Refresh</button>
                 </div>
                 <div class="panel-body" id="alertsBody">
                     <div class="loading">Loading alerts...</div>
@@ -374,28 +438,31 @@
             <!-- Sensor Data Panel -->
             <div class="panel">
                 <div class="panel-header">
-                    <span class="panel-title">📊 Current Sensor Data</span>
-                    <button class="refresh-btn" onclick="loadSensorData()">Refresh</button>
+                    <span class="panel-title">📡 Current Sensor Data</span>
+                    <button class="refresh-btn" onclick="loadSensorData()">↻ Refresh</button>
                 </div>
-                <div class="panel-body" id="sensorBody">
+                <div class="panel-body">
                     <div class="sensor-grid">
-                        <div class="sensor-card">
+                        <div class="sensor-card" id="tempCard">
                             <div class="sensor-icon">🌡️</div>
-                            <div class="sensor-value" id="temperature">--°C</div>
+                            <div class="sensor-value" id="temperature">--</div>
                             <div class="sensor-label">Temperature</div>
+                            <div class="sensor-threshold">Alert: &lt;15°C or &gt;30°C</div>
                         </div>
-                        <div class="sensor-card">
+                        <div class="sensor-card" id="humidCard">
                             <div class="sensor-icon">💧</div>
-                            <div class="sensor-value" id="humidity">--%</div>
+                            <div class="sensor-value" id="humidity">--</div>
                             <div class="sensor-label">Humidity</div>
+                            <div class="sensor-threshold">Alert: &lt;30% or &gt;60%</div>
                         </div>
                         <div class="sensor-card">
                             <div class="sensor-icon">📏</div>
-                            <div class="sensor-value" id="distance">-- cm</div>
+                            <div class="sensor-value" id="distance">--</div>
                             <div class="sensor-label">Distance</div>
+                            <div class="sensor-threshold">Proximity: &lt;50cm</div>
                         </div>
                         <div class="sensor-card">
-                            <div class="sensor-icon">🏃</div>
+                            <div class="sensor-icon">🚶</div>
                             <div class="sensor-value" id="motion">--</div>
                             <div class="sensor-label">Motion</div>
                         </div>
@@ -406,7 +473,7 @@
             <!-- Alert Breakdown Panel -->
             <div class="panel">
                 <div class="panel-header">
-                    <span class="panel-title">📈 Alert Breakdown</span>
+                    <span class="panel-title">📊 Alert Breakdown</span>
                 </div>
                 <div class="panel-body">
                     <div class="sensor-grid">
@@ -416,7 +483,7 @@
                             <div class="sensor-label">Proximity</div>
                         </div>
                         <div class="sensor-card">
-                            <div class="sensor-icon">🚶</div>
+                            <div class="sensor-icon">🚶‍♂️</div>
                             <div class="sensor-value" id="alertTailgate">--</div>
                             <div class="sensor-label">Tailgate</div>
                         </div>
@@ -437,19 +504,145 @@
     </div>
 
     <script>
-        // Configuration
+        // ============================================================================
+        // CONFIGURATION
+        // ============================================================================
+        
         const API_BASE = 'https://cs7080nu-functions-bccwc0h9ema7hmhm.switzerlandnorth-01.azurewebsites.net/api';
+        const POLLING_INTERVAL = 3000;  // 3 seconds fallback polling
+        
+        // Thresholds (must match Arduino)
+        const TEMP_MIN = 15;
+        const TEMP_MAX = 30;
+        const HUMID_MIN = 30;
+        const HUMID_MAX = 60;
+        
+        let connection = null;
+        let useWebSocket = false;
+        let pollingTimer = null;
 
-        let dataMode = 'live';
+        // ============================================================================
+        // SIGNALR CONNECTION
+        // ============================================================================
+        
+        async function initSignalR() {
+            try {
+                updateConnectionStatus('connecting', 'Connecting to WebSocket...');
+                
+                // Get negotiate info
+                const negotiateResponse = await fetch(`${API_BASE}/negotiate`);
+                if (!negotiateResponse.ok) {
+                    throw new Error('Negotiate failed');
+                }
+                
+                const negotiateData = await negotiateResponse.json();
+                
+                // Build SignalR connection
+                connection = new signalR.HubConnectionBuilder()
+                    .withUrl(negotiateData.url, {
+                        accessTokenFactory: () => negotiateData.accessToken
+                    })
+                    .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+                    .configureLogging(signalR.LogLevel.Information)
+                    .build();
+                
+                // Handle incoming events
+                connection.on('newEvent', (event) => {
+                    console.log('Real-time event:', event);
+                    handleRealtimeEvent(event);
+                });
+                
+                connection.onreconnecting(() => {
+                    updateConnectionStatus('connecting', 'Reconnecting...');
+                });
+                
+                connection.onreconnected(() => {
+                    updateConnectionStatus('online', 'WebSocket Connected');
+                    useWebSocket = true;
+                });
+                
+                connection.onclose(() => {
+                    updateConnectionStatus('offline', 'WebSocket Disconnected');
+                    useWebSocket = false;
+                    startPolling();
+                });
+                
+                // Start connection
+                await connection.start();
+                
+                updateConnectionStatus('online', 'WebSocket Connected');
+                document.getElementById('connectionMode').innerHTML = '<span class="realtime-badge">Real-Time</span>';
+                useWebSocket = true;
+                
+                // Still do initial load
+                loadAll();
+                
+            } catch (error) {
+                console.log('SignalR not available, using polling:', error);
+                updateConnectionStatus('warning', 'Using Polling');
+                document.getElementById('connectionMode').innerHTML = '<span class="polling-badge">Polling (3s)</span>';
+                useWebSocket = false;
+                startPolling();
+            }
+        }
+        
+        function updateConnectionStatus(status, text) {
+            const dot = document.getElementById('wsStatus');
+            const statusText = document.getElementById('wsStatusText');
+            
+            dot.className = 'status-dot ' + status;
+            statusText.textContent = text;
+        }
+        
+        function handleRealtimeEvent(event) {
+            const { type, data } = event;
+            
+            switch (type) {
+                case 'sensor_reading':
+                    updateSensorDisplay(data);
+                    break;
+                case 'access_attempt':
+                    addAccessLog(data, true);
+                    loadStats();
+                    break;
+                case 'alert':
+                    addAlert(data, true);
+                    showAlertToast(data.alert_type, data);
+                    loadStats();
+                    break;
+            }
+            
+            updateLastUpdate();
+        }
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
+        // ============================================================================
+        // POLLING FALLBACK
+        // ============================================================================
+        
+        function startPolling() {
+            if (pollingTimer) clearInterval(pollingTimer);
+            
             loadAll();
-            // Auto-refresh every 10 seconds
-            setInterval(loadAll, 10000);
+            pollingTimer = setInterval(loadAll, POLLING_INTERVAL);
+        }
+
+        // ============================================================================
+        // INITIALIZE
+        // ============================================================================
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            // Try SignalR first, fallback to polling
+            initSignalR();
         });
 
-        // Load all data
+        // ============================================================================
+        // DATA LOADING
+        // ============================================================================
+        
+        function noCacheUrl(url) {
+            return `${url}?_=${Date.now()}`;
+        }
+        
         async function loadAll() {
             await loadStats();
             await loadAccessLogs();
@@ -458,19 +651,12 @@
             updateLastUpdate();
         }
 
-        // Update last update time
         function updateLastUpdate() {
             const now = new Date();
             document.getElementById('lastUpdate').textContent = 
                 `Last update: ${now.toLocaleTimeString()}`;
         }
 
-        // Helper: Add cache-busting to URL
-        function noCacheUrl(url) {
-            return `${url}?_=${Date.now()}`;
-        }
-
-        // Load statistics
         async function loadStats() {
             try {
                 const response = await fetch(noCacheUrl(`${API_BASE}/stats`));
@@ -478,27 +664,22 @@
                 
                 const data = await response.json();
                 
-                document.getElementById('accessGranted').textContent = data.access_granted || 0;
-                document.getElementById('accessDenied').textContent = data.access_denied || 0;
-                document.getElementById('alertsTotal').textContent = data.alerts_total || 0;
+                updateStatValue('accessGranted', data.access_granted || 0);
+                updateStatValue('accessDenied', data.access_denied || 0);
+                updateStatValue('alertsTotal', data.alerts_total || 0);
                 
                 document.getElementById('alertProximity').textContent = data.alerts_proximity || 0;
                 document.getElementById('alertTailgate').textContent = data.alerts_tailgate || 0;
                 document.getElementById('alertTemperature').textContent = data.alerts_temperature || 0;
                 document.getElementById('alertHumidity').textContent = data.alerts_humidity || 0;
 
-                // Update status indicators
                 document.getElementById('azureStatus').className = 'status-dot online';
                 document.getElementById('dbStatus').className = 'status-dot online';
-                document.getElementById('iotStatus').className = 'status-dot online';
 
-                // Check data mode
                 if (data.mode === 'mock') {
-                    dataMode = 'mock';
                     document.getElementById('dataMode').innerHTML = 
-                        '<span class="mode-badge">Mock Data</span>';
+                        '<span class="polling-badge">Mock Data</span>';
                 } else {
-                    dataMode = 'live';
                     document.getElementById('dataMode').innerHTML = '';
                 }
                 
@@ -507,8 +688,18 @@
                 document.getElementById('azureStatus').className = 'status-dot offline';
             }
         }
+        
+        function updateStatValue(elementId, value) {
+            const el = document.getElementById(elementId);
+            const oldValue = el.textContent;
+            el.textContent = value;
+            
+            if (oldValue !== '--' && oldValue !== String(value)) {
+                el.classList.add('updated');
+                setTimeout(() => el.classList.remove('updated'), 500);
+            }
+        }
 
-        // Load access logs
         async function loadAccessLogs() {
             const container = document.getElementById('accessLogBody');
             
@@ -523,32 +714,44 @@
                     return;
                 }
                 
-                container.innerHTML = logs.slice(0, 20).map(log => {
-                    const granted = log.access_granted;
-                    const icon = granted ? '✅' : '🚫';
-                    const statusClass = granted ? 'granted' : 'denied';
-                    const statusText = granted ? 'Access Granted' : 'Access Denied';
-                    const time = formatTime(log.timestamp);
-                    
-                    return `
-                        <div class="log-entry ${statusClass}">
-                            <div class="log-icon">${icon}</div>
-                            <div class="log-details">
-                                <div class="log-title">${log.user_name || 'Unknown'}</div>
-                                <div class="log-meta">Card: ${log.card_uid || 'N/A'} • ${statusText}</div>
-                            </div>
-                            <div class="log-time">${time}</div>
-                        </div>
-                    `;
-                }).join('');
+                container.innerHTML = logs.slice(0, 20).map(log => createAccessLogHTML(log)).join('');
                 
             } catch (error) {
                 console.error('Error loading access logs:', error);
                 container.innerHTML = '<div class="error-message">Failed to load access logs</div>';
             }
         }
+        
+        function createAccessLogHTML(log, isNew = false) {
+            const granted = log.access_granted;
+            const icon = granted ? '✅' : '🚫';
+            const statusClass = granted ? 'granted' : 'denied';
+            const statusText = granted ? 'Access Granted' : 'Access Denied';
+            const time = formatTime(log.timestamp);
+            
+            return `
+                <div class="log-entry ${statusClass} ${isNew ? 'new' : ''}">
+                    <div class="log-icon">${icon}</div>
+                    <div class="log-details">
+                        <div class="log-title">${log.user_name || 'Unknown'}</div>
+                        <div class="log-meta">Card: ${log.card_uid || 'N/A'} • ${statusText}</div>
+                    </div>
+                    <div class="log-time">${time}</div>
+                </div>
+            `;
+        }
+        
+        function addAccessLog(log, isNew) {
+            const container = document.getElementById('accessLogBody');
+            const html = createAccessLogHTML(log, isNew);
+            container.insertAdjacentHTML('afterbegin', html);
+            
+            // Remove old entries if too many
+            while (container.children.length > 20) {
+                container.removeChild(container.lastChild);
+            }
+        }
 
-        // Load alerts
         async function loadAlerts() {
             const container = document.getElementById('alertsBody');
             
@@ -563,35 +766,54 @@
                     return;
                 }
                 
-                container.innerHTML = alerts.slice(0, 15).map(alert => {
-                    const alertType = (alert.alert_type || 'UNKNOWN').toLowerCase();
-                    const time = formatTime(alert.timestamp);
-                    const icon = getAlertIcon(alertType);
-                    
-                    return `
-                        <div class="log-entry alert">
-                            <div class="log-icon">${icon}</div>
-                            <div class="log-details">
-                                <div class="log-title">
-                                    <span class="alert-badge ${alertType}">${alert.alert_type || 'ALERT'}</span>
-                                </div>
-                                <div class="log-meta">
-                                    Temp: ${alert.temperature || '--'}°C • 
-                                    Humidity: ${alert.humidity || '--'}%
-                                </div>
-                            </div>
-                            <div class="log-time">${time}</div>
-                        </div>
-                    `;
-                }).join('');
+                container.innerHTML = alerts.slice(0, 15).map(alert => createAlertHTML(alert)).join('');
                 
             } catch (error) {
                 console.error('Error loading alerts:', error);
                 container.innerHTML = '<div class="error-message">Failed to load alerts</div>';
             }
         }
+        
+        function createAlertHTML(alert, isNew = false) {
+            const alertType = (alert.alert_type || 'UNKNOWN').toLowerCase();
+            const time = formatTime(alert.timestamp);
+            const icon = getAlertIcon(alertType);
+            const extraClass = alertType === 'tailgate' ? 'tailgate' : 'alert';
+            
+            return `
+                <div class="log-entry ${extraClass} ${isNew ? 'new' : ''}">
+                    <div class="log-icon">${icon}</div>
+                    <div class="log-details">
+                        <div class="log-title">
+                            <span class="alert-badge ${alertType}">${alert.alert_type || 'ALERT'}</span>
+                            ${alert.send_email ? '📧' : ''}
+                        </div>
+                        <div class="log-meta">
+                            Temp: ${alert.temperature || '--'}°C • 
+                            Humidity: ${alert.humidity || '--'}%
+                        </div>
+                    </div>
+                    <div class="log-time">${time}</div>
+                </div>
+            `;
+        }
+        
+        function addAlert(alert, isNew) {
+            const container = document.getElementById('alertsBody');
+            
+            // Remove "all clear" message if present
+            if (container.querySelector('.loading')) {
+                container.innerHTML = '';
+            }
+            
+            const html = createAlertHTML(alert, isNew);
+            container.insertAdjacentHTML('afterbegin', html);
+            
+            while (container.children.length > 15) {
+                container.removeChild(container.lastChild);
+            }
+        }
 
-        // Load sensor data
         async function loadSensorData() {
             try {
                 const response = await fetch(noCacheUrl(`${API_BASE}/sensors`));
@@ -600,24 +822,73 @@
                 const readings = await response.json();
                 
                 if (readings.length > 0) {
-                    const latest = readings[0];
-                    
-                    document.getElementById('temperature').textContent = 
-                        `${latest.temperature?.toFixed(1) || '--'}°C`;
-                    document.getElementById('humidity').textContent = 
-                        `${latest.humidity?.toFixed(0) || '--'}%`;
-                    document.getElementById('distance').textContent = 
-                        `${latest.distance || '--'} cm`;
-                    document.getElementById('motion').textContent = 
-                        latest.motion ? 'Detected' : 'None';
+                    updateSensorDisplay(readings[0]);
                 }
                 
             } catch (error) {
                 console.error('Error loading sensor data:', error);
             }
         }
+        
+        function updateSensorDisplay(data) {
+            const temp = data.temperature;
+            const humid = data.humidity;
+            
+            document.getElementById('temperature').textContent = 
+                `${temp?.toFixed(1) || '--'}°C`;
+            document.getElementById('humidity').textContent = 
+                `${humid?.toFixed(0) || '--'}%`;
+            document.getElementById('distance').textContent = 
+                `${data.distance || '--'} cm`;
+            document.getElementById('motion').textContent = 
+                data.motion ? 'Detected' : 'None';
+            
+            // Check thresholds and highlight
+            const tempCard = document.getElementById('tempCard');
+            const humidCard = document.getElementById('humidCard');
+            
+            if (temp < TEMP_MIN || temp > TEMP_MAX) {
+                tempCard.classList.add('alert');
+            } else {
+                tempCard.classList.remove('alert');
+            }
+            
+            if (humid < HUMID_MIN || humid > HUMID_MAX) {
+                humidCard.classList.add('alert');
+            } else {
+                humidCard.classList.remove('alert');
+            }
+        }
 
-        // Helper: Format timestamp
+        // ============================================================================
+        // ALERT TOAST
+        // ============================================================================
+        
+        function showAlertToast(alertType, data) {
+            const toast = document.getElementById('alertToast');
+            const message = document.getElementById('alertMessage');
+            
+            let text = alertType;
+            if (alertType === 'TEMPERATURE') {
+                text = `Temperature ${data.temperature}°C (Threshold: ${TEMP_MIN}-${TEMP_MAX}°C)`;
+            } else if (alertType === 'HUMIDITY') {
+                text = `Humidity ${data.humidity}% (Threshold: ${HUMID_MIN}-${HUMID_MAX}%)`;
+            } else if (alertType === 'TAILGATE') {
+                text = 'TAILGATE DETECTED - Multiple people after single access!';
+            }
+            
+            message.textContent = text;
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 5000);
+        }
+
+        // ============================================================================
+        // HELPERS
+        // ============================================================================
+        
         function formatTime(timestamp) {
             if (!timestamp) return '--';
             const date = new Date(timestamp);
@@ -631,11 +902,10 @@
             return date.toLocaleDateString();
         }
 
-        // Helper: Get alert icon
         function getAlertIcon(type) {
             switch (type) {
                 case 'proximity': return '👤';
-                case 'tailgate': return '🚶';
+                case 'tailgate': return '🚶‍♂️';
                 case 'temperature': return '🌡️';
                 case 'humidity': return '💧';
                 default: return '⚠️';
