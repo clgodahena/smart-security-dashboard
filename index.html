@@ -74,15 +74,27 @@
         .stat-card.warning .stat-value { color: #ff9800; }
         .stat-card.info .stat-value { color: #2196f3; }
         .panels {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            display: flex;
+            flex-direction: column;
             gap: 20px;
+        }
+        .panel-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+        @media (max-width: 900px) {
+            .panel-row {
+                grid-template-columns: 1fr;
+            }
         }
         .panel {
             background: rgba(255,255,255,0.05);
             border-radius: 15px;
             border: 1px solid rgba(255,255,255,0.1);
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
         .panel-header {
             background: rgba(0,0,0,0.2);
@@ -236,77 +248,84 @@
             </div>
         </div>
         <div class="panels">
-            <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">📋 Recent Access Logs</span>
-                    <button class="refresh-btn" onclick="loadAccessLogs()">↻</button>
+            <!-- Row 2: Access Logs + Security Alerts -->
+            <div class="panel-row">
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">📋 Recent Access Logs</span>
+                        <button class="refresh-btn" onclick="loadAccessLogs()">↻</button>
+                    </div>
+                    <div class="panel-body" id="accessLogBody">Loading...</div>
                 </div>
-                <div class="panel-body" id="accessLogBody">Loading...</div>
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">🚨 Security Alerts</span>
+                        <button class="refresh-btn" onclick="loadAlerts()">↻</button>
+                    </div>
+                    <div class="panel-body" id="alertsBody">Loading...</div>
+                </div>
             </div>
-            <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">🚨 Security Alerts</span>
-                    <button class="refresh-btn" onclick="loadAlerts()">↻</button>
-                </div>
-                <div class="panel-body" id="alertsBody">Loading...</div>
-            </div>
-            <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">📡 Current Sensor Data</span>
-                    <button class="refresh-btn" onclick="loadSensorData()">↻</button>
-                </div>
-                <div class="panel-body">
-                    <div class="sensor-grid">
-                        <div class="sensor-card" id="tempCard">
-                            <div class="sensor-icon">🌡️</div>
-                            <div class="sensor-value" id="temperature">--</div>
-                            <div class="sensor-label">Temperature</div>
-                            <div class="sensor-threshold">Alert: &lt;15°C or &gt;30°C</div>
-                        </div>
-                        <div class="sensor-card" id="humidCard">
-                            <div class="sensor-icon">💧</div>
-                            <div class="sensor-value" id="humidity">--</div>
-                            <div class="sensor-label">Humidity</div>
-                            <div class="sensor-threshold">Alert: &lt;30% or &gt;60%</div>
-                        </div>
-                        <div class="sensor-card">
-                            <div class="sensor-icon">📏</div>
-                            <div class="sensor-value" id="distance">--</div>
-                            <div class="sensor-label">Distance</div>
-                        </div>
-                        <div class="sensor-card">
-                            <div class="sensor-icon">🚶</div>
-                            <div class="sensor-value" id="motion">--</div>
-                            <div class="sensor-label">Motion</div>
+            
+            <!-- Row 3: Sensor Data + Alert Breakdown -->
+            <div class="panel-row">
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">📡 Current Sensor Data</span>
+                        <button class="refresh-btn" onclick="loadSensorData()">↻</button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="sensor-grid">
+                            <div class="sensor-card" id="tempCard">
+                                <div class="sensor-icon">🌡️</div>
+                                <div class="sensor-value" id="temperature">--</div>
+                                <div class="sensor-label">Temperature</div>
+                                <div class="sensor-threshold">Alert: &lt;15°C or &gt;30°C</div>
+                            </div>
+                            <div class="sensor-card" id="humidCard">
+                                <div class="sensor-icon">💧</div>
+                                <div class="sensor-value" id="humidity">--</div>
+                                <div class="sensor-label">Humidity</div>
+                                <div class="sensor-threshold">Alert: &lt;30% or &gt;60%</div>
+                            </div>
+                            <div class="sensor-card">
+                                <div class="sensor-icon">📏</div>
+                                <div class="sensor-value" id="distance">--</div>
+                                <div class="sensor-label">Distance</div>
+                            </div>
+                            <div class="sensor-card">
+                                <div class="sensor-icon">🚶</div>
+                                <div class="sensor-value" id="motion">--</div>
+                                <div class="sensor-label">Motion</div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-            <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">📊 Alert Breakdown</span>
-                </div>
-                <div class="panel-body">
-                    <div class="sensor-grid">
-                        <div class="sensor-card">
-                            <div class="sensor-icon">👤</div>
-                            <div class="sensor-value" id="alertProximity">--</div>
-                            <div class="sensor-label">Proximity</div>
-                        </div>
-                        <div class="sensor-card">
-                            <div class="sensor-icon">🚶‍♂️</div>
-                            <div class="sensor-value" id="alertTailgate">--</div>
-                            <div class="sensor-label">Tailgate</div>
-                        </div>
-                        <div class="sensor-card">
-                            <div class="sensor-icon">🌡️</div>
-                            <div class="sensor-value" id="alertTemperature">--</div>
-                            <div class="sensor-label">Temperature</div>
-                        </div>
-                        <div class="sensor-card">
-                            <div class="sensor-icon">💧</div>
-                            <div class="sensor-value" id="alertHumidity">--</div>
-                            <div class="sensor-label">Humidity</div>
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">📊 Alert Breakdown</span>
+                    </div>
+                    <div class="panel-body">
+                        <div class="sensor-grid">
+                            <div class="sensor-card">
+                                <div class="sensor-icon">👤</div>
+                                <div class="sensor-value" id="alertProximity">--</div>
+                                <div class="sensor-label">Proximity</div>
+                            </div>
+                            <div class="sensor-card">
+                                <div class="sensor-icon">🚶‍♂️</div>
+                                <div class="sensor-value" id="alertTailgate">--</div>
+                                <div class="sensor-label">Tailgate</div>
+                            </div>
+                            <div class="sensor-card">
+                                <div class="sensor-icon">🌡️</div>
+                                <div class="sensor-value" id="alertTemperature">--</div>
+                                <div class="sensor-label">Temperature</div>
+                            </div>
+                            <div class="sensor-card">
+                                <div class="sensor-icon">💧</div>
+                                <div class="sensor-value" id="alertHumidity">--</div>
+                                <div class="sensor-label">Humidity</div>
+                            </div>
                         </div>
                     </div>
                 </div>
