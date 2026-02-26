@@ -130,16 +130,59 @@
         .alert-badge.tailgate { background: #e91e63; }
         .alert-badge.temperature { background: #ff5722; }
         .alert-badge.humidity { background: #00bcd4; }
-        .notification-toast {
-            position: fixed; top: 20px; right: 20px;
-            background: #f44336; color: white;
-            padding: 15px 25px; border-radius: 10px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
-            z-index: 1000; display: none;
-            animation: slideInRight 0.5s ease-out;
+        
+        /* Toast Notification Container */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 350px;
         }
-        .notification-toast.show { display: block; }
-        @keyframes slideInRight { from{transform:translateX(100%);opacity:0} to{transform:translateX(0);opacity:1} }
+        
+        /* Individual Toast */
+        .toast {
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            animation: slideInRight 0.4s ease-out;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.3s;
+        }
+        .toast:hover { transform: translateX(-5px); }
+        .toast.hiding { opacity: 0; transform: translateX(100%); }
+        
+        .toast-icon { font-size: 1.5rem; }
+        .toast-content { flex: 1; }
+        .toast-title { font-weight: 600; margin-bottom: 3px; }
+        .toast-message { font-size: 0.85rem; opacity: 0.9; }
+        .toast-close {
+            background: none; border: none; color: white;
+            font-size: 1.2rem; cursor: pointer; opacity: 0.7;
+            padding: 0 5px;
+        }
+        .toast-close:hover { opacity: 1; }
+        
+        /* Toast Types */
+        .toast.success { background: linear-gradient(135deg, #4caf50, #45a049); color: white; }
+        .toast.denied { background: linear-gradient(135deg, #f44336, #d32f2f); color: white; }
+        .toast.alert { background: linear-gradient(135deg, #ff9800, #f57c00); color: white; }
+        .toast.tailgate { background: linear-gradient(135deg, #e91e63, #c2185b); color: white; }
+        .toast.temperature { background: linear-gradient(135deg, #ff5722, #e64a19); color: white; }
+        .toast.humidity { background: linear-gradient(135deg, #00bcd4, #0097a7); color: white; }
+        .toast.info { background: linear-gradient(135deg, #2196f3, #1976d2); color: white; }
+        
+        @keyframes slideInRight { 
+            from { transform: translateX(100%); opacity: 0; } 
+            to { transform: translateX(0); opacity: 1; } 
+        }
+        
         .refresh-btn {
             background: rgba(255,255,255,0.1); border: none; color: white;
             padding: 8px 15px; border-radius: 5px; cursor: pointer;
@@ -165,9 +208,10 @@
             <span id="lastUpdate">Last update: --</span>
         </div>
     </div>
-    <div class="notification-toast" id="alertToast">
-        <strong>🚨 Alert:</strong> <span id="alertMessage"></span>
-    </div>
+    
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toastContainer"></div>
+    
     <div class="container">
         <div class="stats-grid">
             <div class="stat-card success">
@@ -272,14 +316,64 @@
     <script>
         // Configuration
         const API_BASE = 'https://cs7080nu-functions-bccwc0h9ema7hmhm.switzerlandnorth-01.azurewebsites.net/api';
-        const POLLING_INTERVAL = 2000; // 2 seconds
+        const POLLING_INTERVAL = 2000;
+        const TOAST_DURATION = 5000;
         const TEMP_MIN = 15, TEMP_MAX = 30, HUMID_MIN = 30, HUMID_MAX = 60;
         
         let connection = null;
         let pollingTimer = null;
         let isSignalRConnected = false;
 
-        // Initialize
+        // ==================== TOAST NOTIFICATIONS ====================
+        
+        function showToast(type, title, message, duration = TOAST_DURATION) {
+            const container = document.getElementById('toastContainer');
+            
+            // Create toast element
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            // Icon based on type
+            const icons = {
+                success: '✅',
+                denied: '🚫',
+                alert: '⚠️',
+                tailgate: '🚶‍♂️',
+                temperature: '🌡️',
+                humidity: '💧',
+                info: 'ℹ️'
+            };
+            
+            toast.innerHTML = `
+                <span class="toast-icon">${icons[type] || '📢'}</span>
+                <div class="toast-content">
+                    <div class="toast-title">${title}</div>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <button class="toast-close" onclick="dismissToast(this.parentElement)">×</button>
+            `;
+            
+            // Add to container
+            container.appendChild(toast);
+            
+            // Auto-dismiss after duration
+            setTimeout(() => dismissToast(toast), duration);
+            
+            // Limit max toasts to 5
+            const toasts = container.querySelectorAll('.toast');
+            if (toasts.length > 5) {
+                dismissToast(toasts[0]);
+            }
+        }
+        
+        function dismissToast(toast) {
+            if (!toast || toast.classList.contains('hiding')) return;
+            toast.classList.add('hiding');
+            setTimeout(() => toast.remove(), 300);
+        }
+
+        // ==================== INITIALIZATION ====================
+
         document.addEventListener('DOMContentLoaded', () => {
             initConnection();
         });
@@ -287,11 +381,9 @@
         async function initConnection() {
             updateStatus('connecting', 'Connecting...');
             
-            // Try SignalR first
             const signalRSuccess = await trySignalR();
             
             if (!signalRSuccess) {
-                // Fallback to polling
                 console.log('Using polling mode');
                 updateStatus('online', 'Polling Mode');
                 document.getElementById('modeBadge').textContent = 'Polling (2s)';
@@ -299,13 +391,11 @@
                 startPolling();
             }
             
-            // Initial data load
             loadAll();
         }
 
         async function trySignalR() {
             try {
-                // Get negotiate info from our Function App
                 const response = await fetch(`${API_BASE}/negotiate`, {
                     method: 'GET',
                     headers: { 'Content-Type': 'application/json' }
@@ -324,29 +414,34 @@
                     return false;
                 }
                 
-                // Create SignalR connection
                 connection = new signalR.HubConnectionBuilder()
                     .withUrl(data.url, { accessTokenFactory: () => data.accessToken })
                     .withAutomaticReconnect([0, 2000, 5000, 10000])
                     .configureLogging(signalR.LogLevel.Warning)
                     .build();
                 
-                // Handle events
+                // Handle incoming events
                 connection.on('newEvent', handleNewEvent);
                 
-                connection.onreconnecting(() => updateStatus('connecting', 'Reconnecting...'));
+                connection.onreconnecting(() => {
+                    updateStatus('connecting', 'Reconnecting...');
+                    showToast('info', 'Reconnecting', 'Connection lost, attempting to reconnect...');
+                });
+                
                 connection.onreconnected(() => {
                     updateStatus('online', 'WebSocket');
                     document.getElementById('modeBadge').textContent = 'Real-Time';
                     document.getElementById('modeBadge').className = 'realtime-badge';
+                    showToast('success', 'Connected', 'Real-time connection restored');
+                    loadAll();
                 });
+                
                 connection.onclose(() => {
                     updateStatus('offline', 'Disconnected');
                     isSignalRConnected = false;
                     startPolling();
                 });
                 
-                // Start connection
                 await connection.start();
                 
                 console.log('SignalR connected!');
@@ -355,7 +450,6 @@
                 document.getElementById('modeBadge').textContent = 'Real-Time';
                 document.getElementById('modeBadge').className = 'realtime-badge';
                 
-                // Stop polling if it was running
                 if (pollingTimer) {
                     clearInterval(pollingTimer);
                     pollingTimer = null;
@@ -369,30 +463,112 @@
             }
         }
 
+        // ==================== REAL-TIME EVENT HANDLING ====================
+
         function handleNewEvent(event) {
-            console.log('Real-time event:', event);
+            console.log('Real-time event received:', event);
             
+            // Handle both direct data and wrapped data
             const data = event.data || event;
-            const eventType = data.event_type || event.type;
-            
-            if (eventType === 'sensor_reading') {
-                updateSensorDisplay(data);
-            } else if (eventType === 'access_attempt') {
-                loadAccessLogs();
-                loadStats();
-            } else if (eventType === 'security_alert') {
-                loadAlerts();
-                loadStats();
-                showAlertToast(data.alert_type, data);
-            }
+            const eventType = data.event_type || data.type;
             
             updateLastUpdate();
+            
+            // Handle different event types
+            switch (eventType) {
+                case 'sensor_reading':
+                    updateSensorDisplay(data);
+                    break;
+                    
+                case 'access_attempt':
+                    handleAccessEvent(data);
+                    break;
+                    
+                case 'security_alert':
+                    handleAlertEvent(data);
+                    break;
+                    
+                case 'test':
+                    showToast('info', 'Test Event', 'SignalR real-time connection working!');
+                    break;
+                    
+                default:
+                    console.log('Unknown event type:', eventType);
+                    // Refresh all data for unknown events
+                    loadAll();
+            }
         }
+        
+        function handleAccessEvent(data) {
+            const granted = data.access_granted;
+            const userName = data.user_name || 'Unknown';
+            const cardUid = data.card_uid || 'N/A';
+            
+            if (granted) {
+                showToast('success', 'Access Granted', `${userName} (${cardUid})`);
+            } else {
+                showToast('denied', 'Access Denied', `Unknown card: ${cardUid}`);
+            }
+            
+            // Refresh access logs and stats
+            loadAccessLogs();
+            loadStats();
+        }
+        
+        function handleAlertEvent(data) {
+            const alertType = (data.alert_type || 'UNKNOWN').toUpperCase();
+            const temp = data.temperature;
+            const humid = data.humidity;
+            const distance = data.distance;
+            
+            let toastType = 'alert';
+            let title = 'Security Alert';
+            let message = '';
+            
+            switch (alertType) {
+                case 'TAILGATE':
+                    toastType = 'tailgate';
+                    title = '🚨 Tailgate Detected!';
+                    message = `Unauthorized entry attempt at ${data.location || 'Main Entrance'}`;
+                    break;
+                    
+                case 'TEMPERATURE':
+                    toastType = 'temperature';
+                    title = 'Temperature Alert';
+                    message = `Temperature: ${temp}°C (Threshold: ${TEMP_MIN}-${TEMP_MAX}°C)`;
+                    break;
+                    
+                case 'HUMIDITY':
+                    toastType = 'humidity';
+                    title = 'Humidity Alert';
+                    message = `Humidity: ${humid}% (Threshold: ${HUMID_MIN}-${HUMID_MAX}%)`;
+                    break;
+                    
+                case 'PROXIMITY':
+                    toastType = 'alert';
+                    title = 'Proximity Alert';
+                    message = `Object detected at ${distance}cm`;
+                    break;
+                    
+                default:
+                    message = `Alert type: ${alertType}`;
+            }
+            
+            showToast(toastType, title, message, 7000); // Longer duration for alerts
+            
+            // Refresh alerts and stats
+            loadAlerts();
+            loadStats();
+        }
+
+        // ==================== POLLING ====================
 
         function startPolling() {
             if (pollingTimer) return;
             pollingTimer = setInterval(loadAll, POLLING_INTERVAL);
         }
+
+        // ==================== UI UPDATES ====================
 
         function updateStatus(status, text) {
             const dot = document.getElementById('connectionStatus');
@@ -455,12 +631,13 @@
                     return;
                 }
                 
-                container.innerHTML = logs.slice(0, 15).map(log => {
+                container.innerHTML = logs.slice(0, 15).map((log, index) => {
                     const granted = log.access_granted;
                     const icon = granted ? '✅' : '🚫';
                     const cls = granted ? 'granted' : 'denied';
+                    const isNew = index === 0 ? 'new' : '';
                     return `
-                        <div class="log-entry ${cls}">
+                        <div class="log-entry ${cls} ${isNew}">
                             <div class="log-icon">${icon}</div>
                             <div class="log-details">
                                 <div class="log-title">${log.user_name || 'Unknown'}</div>
@@ -486,12 +663,13 @@
                     return;
                 }
                 
-                container.innerHTML = alerts.slice(0, 15).map(alert => {
+                container.innerHTML = alerts.slice(0, 15).map((alert, index) => {
                     const type = (alert.alert_type || 'unknown').toLowerCase();
                     const icon = type === 'tailgate' ? '🚶‍♂️' : type === 'temperature' ? '🌡️' : type === 'humidity' ? '💧' : '👤';
                     const cls = type === 'tailgate' ? 'tailgate' : 'alert';
+                    const isNew = index === 0 ? 'new' : '';
                     return `
-                        <div class="log-entry ${cls}">
+                        <div class="log-entry ${cls} ${isNew}">
                             <div class="log-icon">${icon}</div>
                             <div class="log-details">
                                 <div class="log-title"><span class="alert-badge ${type}">${alert.alert_type}</span></div>
@@ -530,14 +708,6 @@
             
             tempCard.classList.toggle('alert', temp != null && (temp < TEMP_MIN || temp > TEMP_MAX));
             humidCard.classList.toggle('alert', humid != null && (humid < HUMID_MIN || humid > HUMID_MAX));
-        }
-
-        function showAlertToast(alertType, data) {
-            const toast = document.getElementById('alertToast');
-            const msg = document.getElementById('alertMessage');
-            msg.textContent = alertType + (data.temperature ? ` - Temp: ${data.temperature}°C` : '');
-            toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 5000);
         }
 
         function formatTime(ts) {
